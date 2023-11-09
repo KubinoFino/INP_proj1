@@ -85,10 +85,13 @@ type fsm_states is (
   while_start,
   while_end,
   break,
-  print,
+  put_char,
   get_char,
   sreturn,
+  sothers
 );
+signal state : fsm_states := start;
+signal next_state : fsm_states := start;
 
 begin
 
@@ -124,8 +127,87 @@ begin
         end if;
   end process;
 
+  cnt: process(CLK, RESET)
+  begin
+        if (RESET = '1') then
+          CNT_data <= (others => '0');
+        elsif (CLK'event and CLK = '1') then
+          if (CNT_inc = '1') then
+            CNT_data <= CNT_data + 1;
+          elsif (CNT_dec = '1') then
+            CNT_data <= CNT_data - 1;
+          elsif (CNT_one = '1') then
+            CNT_data <= "000000000001";
+          end if;
+        end if;
+  end process;
 
+  DATA_ADDR <= PC_addr when MX1 = "0" else PTR_addr;
 
+  DATA_WDATA <= IN_DATA when MX2 = "00" else
+                DATA_RDATA + 1 when MX2 = "01" else
+                DATA_RDATA - 1;
+
+  fsm: process(CLK, RESET)
+  begin
+        if (RESET = '1') then
+          state <= start;
+        elsif (CLK'event and CLK = '1') then
+          state <= next_state;
+        end if;
+  end process;
+
+  fsm_next: process(state, DATA_RDATA, IN_VLD, OUT_BUSY)
+  begin 
+          PC_inc <= '0';
+          PC_dec <= '0';
+
+          PTR_inc <= '0';
+          PTR_dec <= '0';
+
+          CNT_inc <= '0';
+          CNT_dec <= '0';
+          CNT_one <= '0';
+
+          DATA_RDWR <= '0';
+          DATA_EN <= '0';
+
+          IN_REQ <= '0';
+          OUT_WE <= '0';
+
+          case state is 
+            when start =>
+              next_state <= fetch;
+
+            when fetch =>
+              DATA_EN <= '1';
+              next_state <= decode;
+
+            when decode =>
+              case DATA_RDATA is
+                when X"3E" => 
+                    next_state <= increment_ptr;
+                when X"3C" =>
+                    next_state <= decrement_ptr;
+                when X"2B" =>
+                    next_state <= increment_val;
+                when X"2D" =>
+                    next_state <= decrement_val;
+                when X"5B" =>
+                    next_state <= while_start;
+                when X"5D" => 
+                    next_state <= while_end;
+                when X"7E" =>
+                    next_state <= break;
+                when X"2E" =>
+                    next_state <= put_char;
+                when X"2C" =>
+                    next_state <= get_char;
+                when X"40" =>
+                    next_state <= sreturn;
+                when others =>
+                    next_state <= sothers;
+            end case;
 
 end behavioral;
 
