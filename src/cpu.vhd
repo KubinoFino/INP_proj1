@@ -90,8 +90,8 @@ architecture behavioral of cpu is
     end_increment_val,
     decrement_val,
     end_decrement_val,
-    while_start, while_start2, while_start3, 
-    while_end, while_end2, while_end3, while_end4,
+    while_start, while_start2, while_start3, while_start4, 
+    while_end, while_end2, while_end3, while_end4, while_end5,
     break, break2, break3,
     put_char, put_char_end,
     get_char,
@@ -288,6 +288,8 @@ begin
 
             when fetch =>
               DATA_EN <= '1';
+              MX1_sel <= '0';
+              DATA_RDWR <= '0';
               next_state <= decode;
 
             when decode =>
@@ -364,7 +366,7 @@ begin
 
             when while_start2 =>
                 if (DATA_RDATA = (DATA_RDATA'range => '0')) then
-                  CNT_inc <= '1'; -- inkrementuj pocitadlo
+                  CNT_one <= '1'; -- nastav pocitadlo na 1
                   MX1_sel <= '0'; -- vyber pamate programu
                   DATA_EN <= '1'; -- povolenie citania
                   DATA_RDWR <= '0'; -- citanie
@@ -372,23 +374,63 @@ begin
                 else
                   next_state <= fetch; -- ak je hodnota v pamati rozna od 0, posun na dalsiu instrukciu
                 end if;
-                            
+
             when while_start3 =>
-                if (CNT_data /= (CNT_data'range => '0')) then 
-                  if (DATA_RDATA = X"5B") then -- ak je hodnota v pamati 5B, inkrementuj pocitadlo
-                    CNT_inc <= '1'; 
-                  elsif (DATA_RDATA = X"5D") then -- ak je hodnota v pamati 5D, dekrementuj pocitadlo
-                    CNT_dec <= '1'; 
-                  end if;
-                  PC_inc <= '1'; -- posun na dalsiu instrukciu
+                if (CNT_data = (CNT_data'range => '0')) then -- ak je pocitadlo 0, posun na dalsiu instrukciu
+                  --PC_inc <= '1'; 
+                  next_state <= fetch; 
+                else 
                   MX1_sel <= '0'; -- vyber pamate programu
                   DATA_EN <= '1'; -- povolenie citania
                   DATA_RDWR <= '0'; -- citanie
-                  next_state <= while_start3; 
-                else
-                  --PC_inc <= '1'; -- posun na dalsiu instrukciu
-                  next_state <= fetch; -- ak je pocitadlo 0, posun na dalsiu instrukciu
+                  next_state <= while_start4; 
                 end if;
+
+            when while_start4 =>	
+                next_state <= while_start3;
+                PC_inc <= '1'; -- posun na dalsiu instrukciu
+                if (DATA_RDATA = X"5B") then -- ak je [
+                  CNT_inc <= '1';
+                  --next_state <= while_start3;
+                elsif (DATA_RDATA = X"5D") then -- ak je ]
+                  CNT_dec <= '1'; 
+                  --next_state <= while_start_end;
+                end if;
+                  
+
+            -- -- when while_start_going_end =>
+            -- --     --PC_inc <= '1'; -- posun na dalsiu instrukciu
+            -- --     MX1_sel <= '0'; -- vyber pamate programu
+            -- --     DATA_EN <= '1'; -- povolenie citania
+            -- --     DATA_RDWR <= '0'; -- citanie
+            -- --     next_state <= while_start3;
+                            
+            -- when while_start3 => 
+            --     if (DATA_RDATA = X"5B") then -- ak je [
+            --       CNT_inc <= '1';
+            --       next_state <= while_start3;
+            --     elsif (DATA_RDATA = X"5D") then -- ak je ]
+            --       CNT_dec <= '1'; 
+            --       next_state <= while_start_end;
+            --     end if;
+            --     PC_inc <= '1'; -- posun na dalsiu instrukciu
+            --     MX1_sel <= '0'; -- vyber pamate programu
+            --     DATA_EN <= '1'; -- povolenie citania
+            --     DATA_RDWR <= '0'; -- citanie
+            --     --next_state <= while_start3; 
+            
+            -- when while_start_end => 
+            --     if (CNT_data = (CNT_data'range => '0')) then -- ak je pocitadlo 0, posun na dalsiu instrukciu
+            --       --PC_inc <= '1'; 
+            --       next_state <= fetch; 
+            --     else 
+            --       MX1_sel <= '0'; -- vyber pamate programu
+            --       DATA_EN <= '1'; -- povolenie citania
+            --       DATA_RDWR <= '0'; -- citanie
+            --       next_state <= while_start3; 
+            --     end if;  
+
+    
              
             when while_end =>
                 MX1_sel <= '1'; -- vyber pamate dat
@@ -397,37 +439,96 @@ begin
                 next_state <= while_end2; 
 
             when while_end2 =>
+                --MX1_sel <= '1'; -- vyber pamate dat
                 if (DATA_RDATA = (DATA_RDATA'range => '0')) then -- ak je hodnota v pamati 0, posun na dalsiu instrukciu
                   PC_inc <= '1'; 
                   next_state <= fetch; 
                 else 
-                  CNT_one <= '1'; -- ak je hodnota v pamati rozna od 0, nastav pocitadlo na 1
+                  CNT_inc <= '1'; -- ak je hodnota v pamati rozna od 0, nastav pocitadlo na 1
                   PC_dec <= '1'; -- posun na predchadzajucu instrukciu
+                  --MX1_sel <= '0'; -- vyber pamate programu
                   next_state <= while_end3; 
                 end if;
                 
             when while_end3 =>
-                MX1_sel <= '0'; -- vyber pamate programu
-                DATA_EN <= '1'; -- povolenie citania
-                DATA_RDWR <= '0'; -- citanie
-                if (CNT_data = (CNT_data'range => '0')) then  
+                if (CNT_data = (CNT_data'range => '0')) then -- ak je pocitadlo 0, posun na dalsiu instrukciu ak nie posun na predchadzajucu
+                  -- PC_inc <= '1';
+                  -- MX1_sel <= '0';
+                  -- DATA_EN <= '1';
+                  -- DATA_RDWR <= '0';
                   next_state <= fetch;
-                else 
-                  if (DATA_RDATA = X"5B") then -- ak je hodnota v pamati 5B, dekrementuj pocitadlo
-                      CNT_dec <= '1';
-                  elsif (DATA_RDATA = X"5D") then -- ak je hodnota v pamati 5D, inkrementuj pocitadlo
-                      CNT_inc <= '1';
-                  end if;
-                    next_state <= while_end4;  
+                else   
+                  MX1_sel <= '0'; -- vyber pamate programu
+                  DATA_EN <= '1'; -- povolenie citania
+                  --PC_dec <= '1';
+                  next_state <= while_end4;
+                end if;
+            
+            
+                -- MX1_sel <= '0'; -- vyber pamate programu
+                -- DATA_EN <= '1'; -- povolenie citania
+                -- DATA_RDWR <= '0'; -- citanie
+                -- --next_state <= while_end3;
+                -- if (DATA_RDATA = X"5B") then -- ak je [
+                --   CNT_dec <= '1';
+                --   next_state <= while_end_back;
+                -- elsif (DATA_RDATA = X"5D") then -- ak je ]
+                --   CNT_inc <= '1';
+                --   PC_dec <= '1';
+                -- else 
+                --   PC_dec <= '1';
+                --   next_state <= while_end3;
+                -- end if;
+            
+                -- if (CNT_data = (CNT_data'range => '0')) then  
+                --   next_state <= fetch;
+                -- else 
+                --   if (DATA_RDATA = X"5B") then -- ak je hodnota v pamati 5B, dekrementuj pocitadlo
+                --       CNT_dec <= '1';
+                --   elsif (DATA_RDATA = X"5D") then -- ak je hodnota v pamati 5D, inkrementuj pocitadlo
+                --       CNT_inc <= '1';
+                --   end if;
+                --     next_state <= while_end4;  
+                -- end if;
+
+              when while_end4 =>
+                next_state <= while_end5;
+                DATA_EN <= '1';
+                if (DATA_RDATA = X"5B") then -- ak je hodnota v pamati 5B, dekrementuj pocitadlo
+                    CNT_dec <= '1';
+                elsif (DATA_RDATA = X"5D") then -- ak je hodnota v pamati 5D, inkrementuj pocitadlo
+                    CNT_inc <= '1';
                 end if;
 
-            when while_end4 =>  
-                if (CNT_data = (CNT_data'range => '0')) then -- ak je pocitadlo 0, posun na dalsiu instrukciu ak nie posun na predchadzajucu
-                  PC_inc <= '1';
-                else
-                  PC_dec <= '1';
-                end if;
-                next_state <= while_end3;
+              when while_end5 =>
+                  next_state <= while_end3;
+                  if CNT_data = (CNT_data'range => '0') then
+                    PC_inc <= '1';
+                  else
+                    PC_dec <= '1';
+                  end if;
+                
+                
+                
+                
+                -- if (CNT_data = (CNT_data'range => '0')) then -- ak je pocitadlo 0, posun na dalsiu instrukciu ak nie posun na predchadzajucu
+                --   PC_inc <= '1';
+                --   MX1_sel <= '0';
+                --   DATA_EN <= '1';
+                --   DATA_RDWR <= '0';
+                --   next_state <= fetch;
+                -- else   
+                --   PC_dec <= '1';
+                --   next_state <= while_end3;
+                -- end if;
+
+              -- when while_end4 =>  
+              --   if (CNT_data = (CNT_data'range => '0')) then -- ak je pocitadlo 0, posun na dalsiu instrukciu ak nie posun na predchadzajucu
+              --     PC_inc <= '1';
+              --   else
+              --     PC_dec <= '1';
+              --   end if;
+              --   next_state <= while_end3;
 
             when break =>
                 if (CNT_data = (CNT_data'range => '0')) then 
@@ -444,22 +545,20 @@ begin
 
             when break2 =>
                 if (DATA_RDATA = X"5B") then -- ak je hodnota v pamati 5B, inkrementuj pocitadlo
-                  CNT_inc <= '1';
-                  --PC_inc <= '1';
-
-                  next_state <= break2;
-                elsif (DATA_RDATA = X"5D") then -- ak je hodnota v pamati 5D, dekrementuj pocitadlo
-                  --PC_inc <= '1';
-                  if (CNT_data = (CNT_data'range => '0')) then
-
-                    next_state <= fetch;
-                  else
-                    CNT_dec <= '1';
+                    CNT_inc <= '1';
+                    --PC_inc <= '1';
                     next_state <= break2;
-                  end if;
+                elsif (DATA_RDATA = X"5D") then -- ak je hodnota v pamati 5D, dekrementuj pocitadlo
+                    --PC_inc <= '1';
+                    if (CNT_data = (CNT_data'range => '0')) then
+                      next_state <= fetch;
+                    else
+                      CNT_dec <= '1';
+                      next_state <= break2;
+                    end if;
                 else
-                  PC_inc <= '1';
-                  next_state <= break;
+                    PC_inc <= '1';
+                    next_state <= break;
                 end if;
 
             when break3 =>
@@ -475,36 +574,6 @@ begin
                   PC_inc <= '1';
                   next_state <= break;
                 end if;
-            
-                -- when break =>
-            --     PC_inc <= '1';
-            --     CNT_inc <= '1';
-            --     next_state <= break2;
-
-            -- when break2 =>
-            --     if (CNT_data = (CNT_data'range => '0')) then 
-            --       next_state <= fetch;
-            --     else
-            --       DATA_EN <= '1';
-            --       -- PC_inc <= '1';
-            --       MX1_sel <= '1';
-            --       DATA_RDWR <= '0';
-            --       next_state <= break3;
-            --     end if;
-
-            -- when break3 =>
-            --     if (DATA_RDATA = X"5B") then
-            --       CNT_inc <= '1';
-            --       PC_inc <= '1';
-            --       next_state <= break2;
-            --     elsif (DATA_RDATA = X"5D") then
-            --       CNT_dec <= '1';
-            --       PC_inc <= '1';
-            --       next_state <= break2;
-            --     else
-            --       next_state <= break3;
-            --     end if;
-            
 
             when put_char =>
                 if (OUT_BUSY = '1') then 
